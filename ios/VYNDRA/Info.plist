@@ -37,6 +37,8 @@
 	<string></string>
 	<key>NSCameraUsageDescription</key>
 	<string>VYNDRA needs camera access to scan your meals.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>VYNDRA lets you pick a meal photo from your library.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
