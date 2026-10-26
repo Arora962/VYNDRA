@@ -18,7 +18,7 @@ import type {
 // (Profile screen → "Server settings") without touching code.
 // Use your laptop's LAN IP, never "localhost". Run the backend with
 //   VYNDRA_HOST=0.0.0.0 python app.py
-let BASE_URL = 'http://172.20.10.4:5001';
+let BASE_URL = 'https://vyndra-backend-1z7b.onrender.com';
 export const getBaseUrl = () => BASE_URL;
 export const setBaseUrl = (url: string) => {
   BASE_URL = url.trim().replace(/\/+$/, '');
