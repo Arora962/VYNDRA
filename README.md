@@ -1,97 +1,181 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# 🍽️ VYNDRA
 
-# Getting Started
+**Chat with friends. Snap your food. Know what you eat.**
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+VYNDRA is a cross-platform mobile app (React Native + TypeScript) that combines **social chat**, **food-image recognition** and **nutrition analytics**. It detects when you talk about food in a conversation, nudges you to share a photo of the meal, identifies the dish, estimates calories and macros, and turns your logs into weekly insights. It also analyses the chat network to show influencers and communities.
 
-## Step 1: Start Metro
+> Built as an applied project for **CBS3009 – Advanced Social, Text and Media Analytics**, integrating text analytics (food-intent detection), media analytics (dish recognition), and social network analysis (influence and communities) in one product.
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+---
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## ✨ Features
 
-```sh
-# Using npm
-npm start
+| Area | What it does |
+|---|---|
+| **Profiles** | Pick or create a user with an optional diet (Vegetarian, Vegan, Keto, Pescatarian, Mediterranean, Paleo) and allergens (Dairy, Eggs, Gluten, Nuts, Seafood, Soy). |
+| **Today (Home)** | Daily calorie ring against a 2000 kcal goal, macro split (protein / carbs / fat / fiber), and recent meals. Pull to refresh. |
+| **Scan a meal** | Take a photo or pick one from the gallery, choose servings (0.5×–2×), and get detected foods, grams, confidence, calories and macros. |
+| **Low-confidence handling** | Warns when the model is unsure. If a dish has no nutrition data, you can pick the closest food from suggestions and the totals update. |
+| **Chat** | Group chat ("VYNDRA Lounge") and 1-to-1 DMs, refreshed every 4 seconds. |
+| **Food-intent nudge** | The backend classifies each message. Food mentions show a 🍽 *food intent* badge with probability and a pulsing "📸 Snap it!" card that opens the camera. |
+| **Meals in chat** | Photos sent in a chat appear as bubbles with their nutrition analysis attached. |
+| **Insights** | 7-day calorie bar chart with goal line, weekly totals and average per day, macro split, **diet-fit score**, and **allergen warnings**. |
+| **Explore → Influencers** | Users ranked by influence in the message/reply/reaction network (PageRank and centrality metrics). |
+| **Explore → Communities** | Louvain community detection with group sizes and modularity. Your own group is highlighted. |
+| **Explore → Foods** | Search any food (debounced) to see its food cluster, diet tags, allergens, best time to eat and healthier swaps with % calorie savings. |
+| **Server settings** | Change the backend URL inside the app and test the connection, with no code change needed. |
 
-# OR using Yarn
-yarn start
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────┐        HTTP / JSON         ┌──────────────────────────────┐
+│  VYNDRA mobile app      │  ───────────────────────►  │  VYNDRA backend (Flask)      │
+│  React Native + TS      │  ◄───────────────────────  │  (separate repo/folder)      │
+│  (this repository)      │   multipart for images     │  intent model, dish          │
+└─────────────────────────┘                            │  classifier, nutrition table,│
+                                                       │  social graph analytics      │
+                                                       └──────────────────────────────┘
 ```
 
-## Step 2: Build and run your app
+**Pipeline:** Chat text / meal photo → intent detection & dish recognition → nutrition lookup (per 100 g) → aggregation → visual insights → social network analysis.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+### Project structure
 
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```
+VYNDRA/
+├── App.tsx                  # Root: tab bar, overlays (chat / scan), Android back handling
+├── index.js                 # App entry point
+├── src/
+│   ├── api.ts               # All backend calls + response normalisers + base-URL config
+│   ├── types.ts             # Shared TypeScript types
+│   ├── theme.ts             # Colours, spacing, daily calorie goal
+│   ├── utils.ts             # Date/time helpers, chat room ids
+│   ├── components/
+│   │   ├── ui.tsx           # Card, Button, Chip, TickRing, BarChart, MacroRow, ...
+│   │   └── MealCard.tsx     # Compact meal analysis card
+│   └── screens/
+│       ├── ProfileScreen.tsx   # Pick/create user, server settings
+│       ├── HomeScreen.tsx      # Daily summary + recent meals
+│       ├── ScanScreen.tsx      # Camera/gallery, analysis, manual correction
+│       ├── ChatListScreen.tsx  # Lounge + friends
+│       ├── ChatScreen.tsx      # Messages, nudge, photo sharing
+│       ├── InsightsScreen.tsx  # Weekly charts, diet fit, allergens
+│       └── ExploreScreen.tsx   # Influencers, communities, food search
+├── __tests__/App.test.tsx   # Jest smoke test (mocked network)
+├── android/  ios/           # Native projects
 ```
 
-### iOS
+> `CaptureScreen.tsx` and `SummaryScreen.tsx` are older screens that are no longer used by `App.tsx`.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+---
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+## 🔌 Backend API used by the app
 
-```sh
-bundle install
+The app expects a Flask server (default port **5001**). `api.ts` normalises loosely-shaped responses so small backend changes don't crash screens.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/health` | Connection test |
+| GET / POST | `/api/users` | List / create profiles |
+| POST | `/api/chat/send` | Send text; returns `nudge`, `nudge_text`, food mention |
+| POST | `/api/chat/send-meal` | Send a meal photo (multipart) into a chat |
+| GET | `/api/chat/<conversation_id>` | Fetch messages |
+| POST | `/api/meals/analyze` | Analyse a photo (`image`, `user_id`, `servings`) |
+| GET | `/api/meals?limit=50&user_id=` | Meal history |
+| GET | `/api/insights/<user_id>` | Daily/weekly totals, diet fit, allergen warnings |
+| GET | `/api/social/influencers` | Influence ranking |
+| GET | `/api/social/communities` | Communities + modularity |
+| GET | `/api/foods/search?q=` | Food search |
+| GET | `/api/foods/<name>/insights` | Cluster, diets, allergens, swaps |
+| POST | `/api/nutrition/calculate` | Nutrition for a chosen food and grams |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js **≥ 22.11**
+- React Native environment ([setup guide](https://reactnative.dev/docs/set-up-your-environment)): Android Studio and/or Xcode + CocoaPods
+- The VYNDRA backend running on your machine
+- Phone/emulator on the **same Wi-Fi** as the backend
+
+### 1. Install
+```bash
+git clone <your-repo-url>
+cd VYNDRA
+npm install
+# iOS only
+bundle install && cd ios && bundle exec pod install && cd ..
 ```
 
-Then, and every time you update your native dependencies, run:
+### 2. Start the backend
+```bash
+VYNDRA_HOST=0.0.0.0 python app.py     # listens on port 5001
+```
+For the social tabs, generate network data on the backend first with `scripts/make_social_data.py`.
 
-```sh
-bundle exec pod install
+### 3. Point the app to your backend
+Use your computer's **LAN IP**, never `localhost`. Either:
+- edit `BASE_URL` in `src/api.ts`, **or**
+- open the app → **Profile screen → ⚙️ Server settings** → enter e.g. `http://192.168.1.5:5001` → **Save & test**.
+
+### 4. Run
+```bash
+npm start            # Metro bundler
+npm run android      # Android
+npm run ios          # iOS
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+### Other scripts
+```bash
+npm test             # Jest
+npm run lint         # ESLint
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+---
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## 📱 How to use
 
-## Step 3: Modify your app
+1. **Choose or create a profile** (add diet and allergens for personalised insights).
+2. **Chat** in the Lounge or a DM, e.g. *"I just had biryani for lunch 😋"*. VYNDRA detects the food intent and nudges you.
+3. **Snap the meal** (📸 button in the tab bar, chat, or nudge). Pick servings and tap **Analyse meal**.
+4. **Review the result**: calories, macros and confidence. Correct unknown dishes using the suggested foods.
+5. Check **Today** and **Insights** for progress, diet fit and allergen alerts.
+6. Open **Explore** to see influencers, communities, and healthier food swaps.
 
-Now that you have successfully run the app, let's make changes!
+---
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+## 🔐 Permissions & privacy
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+- **Camera** and **photo library** access are used only to capture or select meal photos.
+- **Internet** access is required to reach your backend.
+- The app uses plain HTTP to a local server for development. Use HTTPS in production.
+- Nutrition estimates, diet tags and allergen warnings are rule/dataset-based **guidance only, not medical advice**.
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+---
 
-## Congratulations! :tada:
+## 🧰 Tech Stack
 
-You've successfully run and modified your React Native App. :partying_face:
+React Native 0.87 · React 19 · TypeScript · `react-native-image-picker` · `react-native-safe-area-context` · Jest · ESLint · Prettier
 
-### Now what?
+---
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## ⚠️ Known Limitations
 
-# Troubleshooting
+- Requires the companion backend and a shared network. The app does not work standalone.
+- Dish recognition is limited to the classes the backend model was trained on; unknown dishes need manual selection.
+- Chat uses polling (every 4 s) rather than WebSockets.
+- The 2000 kcal daily goal is fixed in `src/theme.ts`.
+- Profile selection has no authentication (demo-style login).
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## 🔮 Future Work
 
-# Learn More
+User authentication, personalised calorie goals, WebSocket chat, portion estimation from images, offline caching, and HTTPS deployment.
 
-To learn more about React Native, take a look at the following resources:
+---
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+## 📄 License & Acknowledgements
+
+Add your license here. Please credit datasets, pretrained models and libraries used by the backend (food-image dataset, nutrition table, diet-mapping CSV).
